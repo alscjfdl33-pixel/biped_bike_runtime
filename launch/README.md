@@ -27,7 +27,7 @@ ros2 launch biped_bike_runtime display.launch.py
 
 ## `gazebo.launch.py`
 
-Gazebo에서 로봇과 `ros2_control` controller를 실행합니다. OP3 walker, ready posture, transform script를 시뮬레이션에서 먼저 검증할 때 사용합니다.
+Gazebo에서 로봇과 `ros2_control` controller를 실행합니다. IK walker, ready posture, transform script를 시뮬레이션에서 먼저 검증할 때 사용합니다.
 
 ```bash
 ros2 launch biped_bike_runtime gazebo.launch.py
@@ -36,7 +36,7 @@ ros2 launch biped_bike_runtime gazebo.launch.py
 보행 실행:
 
 ```bash
-ros2 run biped_bike_runtime op3_walker.py
+ros2 run biped_bike_runtime ik_walker.py
 ```
 
 실행 구성:
@@ -47,39 +47,6 @@ ros2 run biped_bike_runtime op3_walker.py
 - `joint_state_broadcaster`
 - `joint_trajectory_controller`
 - `wheel_velocity_controller`
-
-## `gazebo_stairs.launch.py`
-
-1cm 높이, 6cm 디딤면의 3단 계단 월드와 로봇을 함께 실행합니다. 영상으로
-확인한 계단 보행의 실제 진행 방향인 `+X` 쪽에 놓이며 첫 단은
-`x=+0.12m`에서 시작합니다. 기본 로봇 시작 위치는 발 메시가 첫 단과
-겹치지 않도록 `x=+0.04m`로 둡니다.
-
-터미널 1:
-
-```bash
-ros2 launch biped_bike_runtime gazebo_stairs.launch.py
-```
-
-터미널 2:
-
-```bash
-ros2 run biped_bike_runtime stair_climber.py --ros-args \
-  -p num_stairs:=1 \
-  -p step_height:=0.01 \
-  -p step_forward:=0.06 \
-  -p foot_clearance:=0.040 \
-  -p lateral_shift:=0.035 \
-  -p hip_pitch_offset_deg:=12.0 \
-  -p phase_duration_sec:=2.0
-```
-
-처음에는 한 단만 시험하고, 발이 첫 단 중앙까지 도달하지 않으면
-`step_forward`와 로봇 시작 X 위치를 함께 조정합니다.
-
-```bash
-ros2 launch biped_bike_runtime gazebo_stairs.launch.py robot_x:=0.03
-```
 
 ## `hardware_display.launch.py`
 
@@ -96,7 +63,8 @@ RViz, GUI, Dynamixel bridge를 함께 실행하는 실제 하드웨어 연동 �
 ros2 launch biped_bike_runtime hardware_display.launch.py
 ```
 
-기본값으로 `center_on_start:=true`입니다. 실행하면 위치 모터에 2048 tick 정자세 명령을 보냅니다.
+안전 기본값에서는 torque, 중앙 정렬, ready 자세 전송이 모두 꺼져 있습니다.
+실제 모터를 움직일 때만 아래 예시처럼 필요한 옵션을 명시적으로 켭니다.
 
 ### 방향 확인 모드
 
@@ -121,7 +89,7 @@ ros2 launch biped_bike_runtime hardware_display.launch.py \
   center_on_start:=false \
   startup_ready_posture_on_start:=true \
   startup_forward_lean_deg:=10.0 \
-  startup_shoulder_pitch_deg:=20.0 \
+  startup_shoulder_pitch_deg:=-70.0 \
   enable_joint_state_commands:=false \
   enable_trajectory_commands:=true
 ```
@@ -131,14 +99,14 @@ ros2 launch biped_bike_runtime hardware_display.launch.py \
 ```bash
 ros2 run biped_bike_runtime ready_posture.py
 
-ros2 run biped_bike_runtime op3_walker.py
+ros2 run biped_bike_runtime ik_walker.py
 ```
 
 첫 실물 검증은 로봇을 지지한 상태에서 다음처럼 한 사이클만 5배 느리게
 실행합니다.
 
 ```bash
-ros2 run biped_bike_runtime op3_walker.py --ros-args \
+ros2 run biped_bike_runtime ik_walker.py --ros-args \
   -p num_cycles:=1 \
   -p trajectory_time_scale:=5.0 \
   -p startup_duration_sec:=3.0
@@ -161,7 +129,7 @@ ros2 launch biped_bike_runtime hardware_display.launch.py \
   center_on_start:=false \
   startup_ready_posture_on_start:=true \
   startup_forward_lean_deg:=10.0 \
-  startup_shoulder_pitch_deg:=20.0 \
+  startup_shoulder_pitch_deg:=-70.0 \
   enable_joint_state_commands:=false \
   enable_trajectory_commands:=true
 ```
@@ -178,7 +146,7 @@ ros2 launch biped_bike_runtime hardware_display.launch.py \
   center_on_start:=false \
   startup_ready_posture_on_start:=true \
   startup_forward_lean_deg:=10.0 \
-  startup_shoulder_pitch_deg:=20.0 \
+  startup_shoulder_pitch_deg:=-70.0 \
   enable_joint_state_commands:=false \
   enable_trajectory_commands:=true
 ```
@@ -202,28 +170,28 @@ ros2 launch biped_bike_runtime hardware_display.launch.py \
 ## `hardware_display.launch.py` 파라미터
 
 - `torque_on_start`  
-  기본값 `true`. 시작 시 위치 모터 torque를 켭니다.
+  기본값 `false`. 실제 구동 준비가 끝났을 때만 `true`로 켭니다.
 
 - `center_on_start`  
-  기본값 `true`. 시작 시 위치 모터를 2048 tick으로 보냅니다. 현재 자세가 많이 틀어져 있으면 갑자기 움직일 수 있으므로 로봇을 잡거나 지지대에 올린 상태에서 켭니다.
+  기본값 `false`. `true`이면 시작 시 위치 모터를 2048 tick으로 보냅니다. 현재 자세가 많이 틀어져 있으면 갑자기 움직일 수 있으므로 로봇을 잡거나 지지대에 올린 상태에서 켭니다.
 
 - `startup_ready_posture_on_start`  
   기본값 `false`. 시작 시 2048 tick 영점 대신 앞으로 살짝 기울어진 ready 자세를 보냅니다. 실물 보행 시작 전에는 `center_on_start:=false`와 함께 켭니다.
 
 - `startup_forward_lean_deg`  
-  기본값 `5.0`. `startup_ready_posture_on_start`에서 좌우 hip pitch에 추가하는 전방 기울임입니다. 현재 실물 보행 기본 예시는 `10.0`을 사용합니다.
+  호환성을 위해 남아 있는 사용 중단 예정 파라미터입니다. 현재 ver6 ready 자세에서는 적용하지 않습니다.
 
 - `startup_shoulder_pitch_deg`  
-  기본값 `20.0`. `startup_ready_posture_on_start`에서 어깨 pitch를 위로 들어 올리는 각도입니다. 팔꿈치 pitch는 0도로 유지합니다.
+  기본값 `-70.0`. `startup_ready_posture_on_start`에서 어깨 pitch를 뒤쪽으로 접어 유지하는 각도입니다. 팔꿈치 pitch는 0도로 유지합니다.
 
 - `max_abs_position_rad`  
-  기본값 `0.35`. 이 절대값보다 큰 위치 명령은 무시합니다. OP3 walker 실기 보행에서는 보통 `2.2` 정도로 올립니다.
+  기본값 `0.35`. 이 절대값보다 큰 위치 명령은 무시합니다. 실기 보행에서는 보통 `2.2` 정도로 올립니다.
 
 - `log_joint_states`  
   기본값 `true`. `/joint_states`에서 받은 joint 명령을 터미널에 출력합니다.
 
 - `enable_joint_state_commands`  
-  기본값 `true`. GUI 슬라이더 `/joint_states` 명령을 실제 모터로 보냅니다.
+  기본값 `false`. `true`일 때만 GUI 슬라이더 `/joint_states` 명령을 실제 모터로 보냅니다.
 
 - `enable_trajectory_commands`  
   기본값 `true`. walker/ready/transform 스크립트의 `JointTrajectory` 명령을 실제 모터로 보냅니다.

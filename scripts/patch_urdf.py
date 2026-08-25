@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SolidWorks URDF 패치 스크립트 (ver5 대응)
+SolidWorks URDF 패치 스크립트 (ver6 대응)
 
 SolidWorks에서 익스포트한 원본 URDF를 ROS 2 + Gazebo 호환으로 패치합니다.
 
@@ -14,7 +14,7 @@ SolidWorks에서 익스포트한 원본 URDF를 ROS 2 + Gazebo 호환으로 패�
     3. urdf/ 와 meshes/ 에 결과 저장
     4. launch 파일, 제어 코드 등은 전혀 건드리지 않음
 
-ver5 기준:
+ver6 기준:
     - 다리: 6 DOF (hip_yaw 추가) — l/r_hip_yaw, l/r_hip_roll, l/r_hip_pitch,
       l/r_knee_pitch, l/r_ankle_pitch, l/r_foot_roll
     - 팔: 5 DOF — arm_base_yaw, arm_shoulder_pitch, arm_elbow_pitch,
@@ -69,7 +69,12 @@ def find_export_urdf():
     # 먼저 solidworks_export/urdf/ 확인
     urdf_dir = os.path.join(EXPORT_DIR, "urdf")
     if os.path.isdir(urdf_dir):
-        urdf_files = glob.glob(os.path.join(urdf_dir, "*.urdf"))
+        urdf_files = sorted(
+            glob.glob(os.path.join(urdf_dir, "*ver6.urdf")),
+            reverse=True,
+        )
+        if not urdf_files:
+            urdf_files = sorted(glob.glob(os.path.join(urdf_dir, "*.urdf")))
         if urdf_files:
             return urdf_files[0]
 
@@ -196,14 +201,16 @@ def patch_joint_limits_and_dynamics(content):
     )
     content = re.sub(pattern_revolute, replacement_revolute, content)
 
-    # The shoulder link mechanically interferes beyond about 25 degrees backward.
+    # Keep a 10 degree simulation margin beyond the -110 degree command. If the
+    # command and URDF lower limit are identical, Gazebo can lock the joint at
+    # the hard stop and fail to move it back toward the ready pose.
     shoulder_pattern = (
         r'(<joint\s+name="arm_shoulder_pitch_jnt".*?<limit\s+lower=")'
         r'-3\.14159(")'
     )
     content = re.sub(
         shoulder_pattern,
-        r'\g<1>-0.436332\g<2>',
+        r'\g<1>-2.0944\g<2>',
         content,
         flags=re.DOTALL,
     )
@@ -237,8 +244,63 @@ def patch_joint_limits_and_dynamics(content):
     
     return content
 
+def patch_simulation_sensors(content):
+    """[패치 7] 시뮬레이션용 lidar와 ground-truth odometry 추가"""
+    if 'name="gpu_lidar"' in content:
+        return content
+
+    simulation_xml = f'''  <!-- Simulation-only lidar. The physical C1 uses the same lidar_link frame. -->
+  <link name="lidar_link">
+    <inertial>
+      <mass value="0.05" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <inertia ixx="0.00002" ixy="0.0" ixz="0.0" iyy="0.00002" iyz="0.0" izz="0.00002" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry><cylinder radius="0.025" length="0.03" /></geometry>
+      <material name="lidar_green"><color rgba="0.1 0.8 0.1 1.0" /></material>
+    </visual>
+  </link>
+  <joint name="lidar_joint" type="fixed">
+    <origin xyz="-0.20 0 0.20" rpy="0 -1.3374 0" />
+    <parent link="base_link" />
+    <child link="lidar_link" />
+  </joint>
+  <gazebo reference="lidar_link">
+    <sensor name="gpu_lidar" type="gpu_lidar">
+      <topic>scan</topic>
+      <gz_frame_id>lidar_link</gz_frame_id>
+      <update_rate>10</update_rate>
+      <ray>
+        <scan>
+          <horizontal>
+            <samples>360</samples><resolution>1</resolution>
+            <min_angle>-3.14159265</min_angle><max_angle>3.14159265</max_angle>
+          </horizontal>
+          <vertical>
+            <samples>1</samples><resolution>1</resolution>
+            <min_angle>0.0</min_angle><max_angle>0.0</max_angle>
+          </vertical>
+        </scan>
+        <range><min>0.08</min><max>8.0</max><resolution>0.01</resolution></range>
+      </ray>
+      <always_on>true</always_on><visualize>true</visualize>
+    </sensor>
+  </gazebo>
+  <gazebo>
+    <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
+      <odom_frame>world</odom_frame><robot_base_frame>base_link</robot_base_frame>
+      <odom_publish_frequency>50</odom_publish_frequency>
+      <odom_topic>/model/{PACKAGE_NAME}/ground_truth_odometry</odom_topic>
+      <dimensions>3</dimensions>
+    </plugin>
+  </gazebo>'''
+    return content.replace('</robot>', f'{simulation_xml}\n</robot>')
+
+
 def patch_self_collision(content):
-    """[패치 7] 가제보 내 링크 간 자가 충돌(Self-collision) 활성화
+    """[패치 8] 가제보 내 링크 간 자가 충돌(Self-collision) 활성화
     
     모든 <link name="..."> 태그에 해당하는 Gazebo <self_collide>true</self_collide> 속성 부여
     """
@@ -255,7 +317,7 @@ def patch_self_collision(content):
     return content
 
 def patch_ros2_control(content):
-    """[패치 8] ros2_control 제어기 및 Gazebo 플러그인 추가
+    """[패치 9] ros2_control 제어기 및 Gazebo 플러그인 추가
 
     모든 작동하는 관절(revolute, continuous)을 ros2_control 하드웨어 인터페이스로 등록하고,
     Gazebo Harmonic (gz_ros2_control) 시스템 플러그인을 활성화합니다.
@@ -320,7 +382,7 @@ def copy_meshes(mesh_files):
 
 def main():
     print("=" * 50)
-    print(f"🔧 SolidWorks URDF 패치 시작 (ver5)")
+    print(f"🔧 SolidWorks URDF 패치 시작 (ver6)")
     print(f"   원본: {EXPORT_DIR}")
     print(f"   출력: {PKG_ROOT}")
     print("=" * 50)
@@ -333,37 +395,41 @@ def main():
         content = f.read()
 
     # 패치 순서대로 적용
-    print("\n[1/8] CRLF → LF 변환...")
+    print("\n[1/9] CRLF → LF 변환...")
     content = patch_crlf(content)
     print("  ✅ 완료")
 
-    print("[2/8] package:// URI 변경...")
+    print("[2/9] package:// URI 변경...")
     content = patch_package_name(content)
     print(f"  ✅ → package://{PACKAGE_NAME}/meshes/")
 
-    print("[3/8] Joint 이름 충돌 해결 (_jnt 접미사)...")
+    print("[3/9] Joint 이름 충돌 해결 (_jnt 접미사)...")
     content = patch_joint_names(content)
     print("  ✅ 완료")
 
-    print("[4/8] 고관절 롤 rpy 보정...")
+    print("[4/9] 고관절 롤 rpy 보정...")
     content = patch_hip_roll_rpy(content)
     for name, patch in HIP_ROLL_RPY_PATCHES.items():
         print(f"  ✅ {name}: rpy {patch['from']} → {patch['to']}")
 
-    print("[5/8] 하체 pitch joint axis를 보행/ready 코드 기준으로 보정...")
+    print("[5/9] 하체 pitch joint axis를 보행/ready 코드 기준으로 보정...")
     content = patch_joint_axes(content)
     for name, axis_xyz in JOINT_AXIS_PATCHES.items():
         print(f"  ✅ {name}: axis {axis_xyz}")
 
-    print("[6/8] 다이나믹셀 모터 속성 및 동역학 적용...")
+    print("[6/9] 다이나믹셀 모터 속성 및 동역학 적용...")
     content = patch_joint_limits_and_dynamics(content)
     print("  ✅ limit, dynamics (XL430-W250-T) 추가 완료")
 
-    print("[7/8] 가제보 자가 충돌(Self-collide) 활성화...")
+    print("[7/9] 시뮬레이션 lidar 및 ground-truth odometry 추가...")
+    content = patch_simulation_sensors(content)
+    print("  ✅ /scan 및 ground-truth odometry 센서 추가 완료")
+
+    print("[8/9] 가제보 자가 충돌(Self-collide) 활성화...")
     content = patch_self_collision(content)
     print("  ✅ 모든 링크에 <self_collide>true</self_collide> 추가 완료")
 
-    print("[8/8] ros2_control 플러그인 추가...")
+    print("[9/9] ros2_control 플러그인 추가...")
     content = patch_ros2_control(content)
     print("  ✅ 컨트롤러 설정(hardware interface 및 plugin) 추가 완료")
 

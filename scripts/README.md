@@ -6,54 +6,21 @@
 
 ## 보행
 
-### `stair_climber.py`
+### `ik_walker.py`
 
-작고 높이가 알려진 계단을 위한 초기 오픈루프 계단 보행 궤적 생성기입니다.
-지지발 쪽 무게 이동, 선행발 상승/착지, 골반 상승, 후행발 상승/착지를
-순서대로 생성하며 기존 보행과 같은 `JointTrajectory` 토픽으로 publish합니다.
-각 발이 계단에 착지한 뒤에는 한 phase 동안 자세를 유지하여 접촉이 안정된
-다음 골반 이동을 시작합니다.
-
-기본값은 1cm 높이, 6cm 전진, 4cm 추가 발 여유 높이로 한 단을 매우
-느리게 오르는 Gazebo 우선 검증 설정입니다.
-
-```bash
-ros2 run biped_bike_runtime stair_climber.py
-```
-
-두 단을 오르고 첫발을 오른발로 바꾸는 예:
-
-```bash
-ros2 run biped_bike_runtime stair_climber.py --ros-args \
-  -p num_stairs:=2 \
-  -p first_lead_leg:=right \
-  -p step_height:=0.01 \
-  -p step_forward:=0.06 \
-  -p foot_clearance:=0.040 \
-  -p lateral_shift:=0.035 \
-  -p hip_pitch_offset_deg:=12.0 \
-  -p phase_duration_sec:=2.0
-```
-
-이 코드는 IMU나 발 접촉 센서를 사용하지 않는 오픈루프 궤적입니다. 실제
-로봇에서는 바로 사용하지 말고 Gazebo에서 각 단계를 확인한 뒤, 안전줄과
-지지대를 사용하여 한 단부터 시험합니다.
-
-### `op3_walker.py`
-
-OP3 walking module 기반의 12자유도 다리 보행 엔진입니다. 계산된 17개 관절 목표를 `JointTrajectory`로 만들어 `/joint_trajectory_controller/joint_trajectory`에 publish합니다.
+12자유도 다리 보행 엔진입니다. 사인파 기반 발 궤적과 해석적 IK로 계산한 17개 관절 목표를 `JointTrajectory`로 만들어 `/joint_trajectory_controller/joint_trajectory`에 publish합니다.
 
 실행 예:
 
 ```bash
-ros2 run biped_bike_runtime op3_walker.py
+ros2 run biped_bike_runtime ik_walker.py
 ```
 
 워커는 현재 실물 자세에서 보행 시작 자세까지 기본 3초 동안 부드럽게
 이동한 뒤 첫 스텝을 시작합니다. 이 시간은 보행 슬로모션 배율과 별개입니다.
 
 ```bash
-ros2 run biped_bike_runtime op3_walker.py --ros-args \
+ros2 run biped_bike_runtime ik_walker.py --ros-args \
   -p startup_duration_sec:=3.0
 ```
 
@@ -62,7 +29,7 @@ ros2 run biped_bike_runtime op3_walker.py --ros-args \
 아래 조합은 실제 하드웨어에서 보행이 잘 되는 것으로 확인한 보정값입니다.
 
 ```bash
-ros2 run biped_bike_runtime op3_walker.py --ros-args \
+ros2 run biped_bike_runtime ik_walker.py --ros-args \
   -p num_cycles:=1 \
   -p support_hip_roll_lift_deg:=20.0 \
   -p support_ankle_roll_lift_deg:=10.0 \
@@ -85,7 +52,7 @@ ros2 run biped_bike_runtime op3_walker.py --ros-args \
 자주 쓰는 파라미터:
 
 ```bash
-ros2 run biped_bike_runtime op3_walker.py --ros-args \
+ros2 run biped_bike_runtime ik_walker.py --ros-args \
   -p z_move_amplitude:=0.070 \
   -p y_swap_amplitude:=-0.047 \
   -p x_move_amplitude:=-0.025 \
@@ -103,7 +70,7 @@ ros2 run biped_bike_runtime op3_walker.py --ros-args \
   -p swing_foot_pitch_lift_deg:=0.0 \
   -p swing_ankle_pitch_lift_deg:=0.0 \
   -p pelvis_pitch_forward_lift_deg:=5.0 \
-  -p arm_shoulder_pitch_deg:=20.0 \
+  -p arm_shoulder_pitch_deg:=-70.0 \
   -p trajectory_time_scale:=1.5
 ```
 
@@ -135,14 +102,14 @@ ros2 run biped_bike_runtime op3_walker.py --ros-args \
 - `swing_ankle_pitch_lift_sign`: 스윙발 ankle pitch 직접 보정 방향입니다. 뒤꿈치가 더 끌리면 `-1.0`으로 바꿔 테스트합니다.
 - `pelvis_pitch_forward_lift_deg`: 실기 보정값입니다. 한쪽 발이 나가는 동안에만 지지발 hip pitch에 적용되는 보정 최대 각도입니다.
 - `pelvis_pitch_forward_lift_sign`: 골반 pitch 보정 방향입니다. 보정 후 골반이 더 뒤로 누우면 `-1.0`으로 바꿔 테스트합니다.
-- `arm_shoulder_pitch_deg`: 보행 중 유지할 어깨 pitch 각도입니다. 뒤쪽이 무거운 실물 기본값은 `20.0`이며, 팔꿈치 pitch는 0도로 유지합니다.
+- `arm_shoulder_pitch_deg`: 보행 중 유지할 어깨 pitch 각도입니다. 실물 기본값은 뒤쪽으로 접은 `-70.0`이며, 팔꿈치 pitch는 0도로 유지합니다.
 - `num_cycles`: 생성할 보행 주기 수입니다. 한 주기는 좌/우 2보이므로 `1`이면 2보, `5`이면 10보입니다.
 
 ## 준비 자세와 변신
 
 ### `ready_posture.py`
 
-보행 전 사용할 기본 준비 자세를 보냅니다. 무릎을 약간 굽히고, 뒤쪽이 무거운 실물 기준으로 hip pitch를 앞으로 5도 더 기울이며, 어깨 pitch를 20도 위로 들어 로봇을 안정적인 시작 자세로 정렬할 때 사용합니다. 팔꿈치 pitch는 0도로 유지합니다.
+보행 전 사용할 기본 준비 자세를 보냅니다. 무릎을 약간 굽히고, 뒤쪽이 무거운 실물 기준으로 hip pitch를 앞으로 5도 더 기울이며, 어깨 pitch를 뒤쪽으로 70도 접어 로봇을 안정적인 시작 자세로 정렬할 때 사용합니다. 팔꿈치 pitch는 0도로 유지합니다.
 
 ```bash
 ros2 run biped_bike_runtime ready_posture.py
@@ -158,7 +125,7 @@ ros2 run biped_bike_runtime ready_posture.py --ros-args \
 실물 기본 보정값:
 
 - `forward_lean_deg`: 기본값 `5.0`. 좌우 hip pitch에 추가하는 전방 기울임입니다.
-- `arm_shoulder_pitch_deg`: 기본값 `20.0`. ready/walker 중 어깨 pitch를 들어 유지하는 각도입니다. 팔꿈치 pitch는 0도로 유지합니다.
+- `arm_shoulder_pitch_deg`: 기본값 `-70.0`. ready/walker 중 어깨 pitch를 뒤쪽으로 접어 유지하는 각도입니다. 팔꿈치 pitch는 0도로 유지합니다.
 
 ### `transform_bike.py`
 
@@ -246,9 +213,136 @@ ROS 명령을 Dynamixel XL430 명령으로 변환하는 실기 브릿지입니�
 - `JointTrajectory`의 점 사이를 8ms 주기로 선형 보간합니다. 첫 점은 모터의 현재 위치에서 시작하므로, 도착 시간까지 기다렸다가 목표로 한 번에 점프하지 않습니다.
 - 보행용 전역 명령 한도는 `max_abs_position_rad`를 사용하지만, 180도 회전이 필요한 `arm_base_yaw_jnt`는 하드웨어 YAML의 관절별 한도 `3.14159 rad`를 우선 적용합니다.
 - `/wheel_velocity_controller/commands`를 받아 두 실물 바퀴의 Goal Velocity에 sync write하고, 명령 timeout 시 속도를 0으로 만듭니다.
-- `startup_ready_posture_on_start:=true`를 켜면 시작 시 hip pitch를 앞으로 더 기울인 ready 자세와 `startup_shoulder_pitch_deg` 어깨 각도를 바로 보냅니다. 실물 보행 기본값은 `startup_forward_lean_deg:=10.0`, `startup_shoulder_pitch_deg:=20.0`이며 팔꿈치 pitch는 0도입니다.
+- `startup_ready_posture_on_start:=true`를 켜면 시작 시 hip pitch를 앞으로 더 기울인 ready 자세와 `startup_shoulder_pitch_deg` 어깨 각도를 바로 보냅니다. 실물 보행 기본값은 `startup_forward_lean_deg:=10.0`, `startup_shoulder_pitch_deg:=-70.0`이며 팔꿈치 pitch는 0도입니다.
 
 브릿지는 보통 직접 실행하지 않고 `hardware_display.launch.py`로 실행합니다.
+
+#### OpenCR IMU 데이터 형식과 강화학습 입력 기준
+
+현재 실제 로봇 제어 중 IMU는 OpenCR 내장 IMU를 사용합니다. OpenCR은 Dynamixel TTL 브리지 역할을 하면서, 가상 Dynamixel ID `200`으로 IMU 값을 응답합니다. PC 쪽 `dxl_joint_state_bridge.py`가 이 값을 읽어서 ROS 표준 메시지인 `sensor_msgs/Imu`로 변환해 `/opencr/imu`에 publish합니다.
+
+실행 경로:
+
+```bash
+ros2 launch biped_bike_runtime hardware_display.launch.py \
+  enable_opencr_imu:=true \
+  enable_imu_tf:=true \
+  use_joint_state_gui:=false \
+  publish_present_joint_states:=true \
+  enable_joint_state_commands:=false \
+  enable_trajectory_commands:=true \
+  startup_ready_posture_on_start:=true \
+  center_on_start:=false
+```
+
+확인은 다음처럼 합니다.
+
+```bash
+ros2 topic echo /opencr/imu
+ros2 run tf2_ros tf2_echo world base_link
+```
+
+웹 컨트롤러의 하드웨어 ON 버튼도 위 설정을 기본으로 실행합니다.
+
+OpenCR 스케치 `arduino/opencr_dxl_bridge_with_imu/opencr_dxl_bridge_with_imu.ino`는 주소 `100`부터 `68 byte`짜리 IMU 블록을 만듭니다. PC에서는 Dynamixel Protocol 2.0 read로 이 블록을 읽습니다.
+
+| Offset | Type | 이름 | 단위/의미 |
+|---:|---|---|---|
+| 100 | `uint32` | `time_ms` | OpenCR 부팅 후 ms |
+| 104 | `float` | `qw` | OpenCR IMU quaternion w |
+| 108 | `float` | `qx` | OpenCR IMU quaternion x |
+| 112 | `float` | `qy` | OpenCR IMU quaternion y |
+| 116 | `float` | `qz` | OpenCR IMU quaternion z |
+| 120 | `float` | `roll_deg` | roll, degree |
+| 124 | `float` | `pitch_deg` | pitch, degree |
+| 128 | `float` | `yaw_deg` | yaw, degree |
+| 132 | `float` | `gyro_x_dps` | gyro x, degree/sec |
+| 136 | `float` | `gyro_y_dps` | gyro y, degree/sec |
+| 140 | `float` | `gyro_z_dps` | gyro z, degree/sec |
+| 144 | `float` | `acc_x_g` | accel x, g |
+| 148 | `float` | `acc_y_g` | accel y, g |
+| 152 | `float` | `acc_z_g` | accel z, g |
+| 156 | `int16` | `gyro_x_adc` | raw gyro x |
+| 158 | `int16` | `gyro_y_adc` | raw gyro y |
+| 160 | `int16` | `gyro_z_adc` | raw gyro z |
+| 162 | `int16` | `acc_x_adc` | raw accel x |
+| 164 | `int16` | `acc_y_adc` | raw accel y |
+| 166 | `int16` | `acc_z_adc` | raw accel z |
+
+PC 쪽에서는 이 블록을 다음 형식으로 unpack합니다.
+
+```python
+struct.unpack("<I13f6h", bytes(data))
+```
+
+`/opencr/imu`는 `sensor_msgs/Imu`입니다. 강화학습에서 ROS 토픽을 바로 쓰면 이 형식을 기준으로 받으면 됩니다.
+
+```text
+header.frame_id: body_link
+orientation: quaternion, x/y/z/w
+angular_velocity: rad/s
+linear_acceleration: m/s^2
+```
+
+변환 규칙은 다음과 같습니다.
+
+| ROS 필드 | 원본 OpenCR 값 | 변환 |
+|---|---|---|
+| `orientation.w/x/y/z` | `qw/qx/qy/qz` | 그대로 사용 |
+| `angular_velocity.x/y/z` | `gyro_*_dps` | `deg/s * pi / 180` |
+| `linear_acceleration.x/y/z` | `acc_*_g` | `g * 9.80665` |
+| `orientation_covariance` | 고정값 | 대각선 `0.0025` |
+| `angular_velocity_covariance` | 고정값 | 대각선 `0.02` |
+| `linear_acceleration_covariance` | 고정값 | 대각선 `0.04` |
+
+중요한 점은 `/opencr/imu`의 quaternion은 OpenCR 보드 기준 원본 자세라는 것입니다. 보드가 로봇 등 뒤에 수직으로 달려 있어서, 이 값을 그대로 쓰면 로봇의 roll/pitch/yaw 감각과 다르게 보입니다.
+
+로봇 기준 자세 시각화는 `imu_base_tf.py`가 담당합니다. 이 노드는 `/opencr/imu`를 받아서 `world -> base_link` TF를 publish합니다.
+
+| 파라미터 | 기본값 | 의미 |
+|---|---:|---|
+| `imu_mount_roll_deg` | `-90.0` | OpenCR 보드 장착 roll 보정 |
+| `imu_mount_pitch_deg` | `0.0` | 장착 pitch 보정 |
+| `imu_mount_yaw_deg` | `0.0` | 장착 yaw 보정 |
+| `imu_rpy_remap` | `YRp` | roll/pitch/yaw 축 재매핑. 대문자는 부호 반전 |
+| `imu_zero_yaw_on_start` | `true` | 켤 때 yaw를 정면 0으로 잡음 |
+| `imu_yaw_zero_samples` | `10` | 처음 10개 샘플 평균으로 yaw zero 계산 |
+| `imu_pivot_x/y/z` | `-0.066549, -0.076779, 0.018299` | base_link 중앙 기준 회전 pivot 보정 |
+
+즉 RViz와 웹 뷰어에서 로봇이 기울어지는 자세는 원본 `/opencr/imu`가 아니라 보정된 `/tf`의 `world -> base_link`를 보고 있습니다. 강화학습에서 로봇 몸통 기준 roll/pitch/yaw를 쓰고 싶으면 이 보정된 TF 또는 동일한 보정식을 적용한 quaternion을 쓰는 것이 안전합니다.
+
+강화학습 observation 추천:
+
+```text
+base_orientation_quat: [x, y, z, w]      # 보정된 world -> base_link quaternion 권장
+base_angular_velocity: [wx, wy, wz]      # /opencr/imu angular_velocity, rad/s
+base_linear_accel: [ax, ay, az]          # /opencr/imu linear_acceleration, m/s^2
+joint_position: 현재 /joint_states position
+joint_velocity: 현재 /joint_states velocity가 안정적으로 읽히면 사용
+```
+
+정책 입력으로 yaw 절대각이 필요 없으면 quaternion 대신 gravity vector를 body frame으로 회전한 값이나 roll/pitch만 쓰는 편이 더 안정적입니다. yaw는 시작할 때 `imu_zero_yaw_on_start:=true`로 0을 잡지만, 장시간 운용에서는 IMU yaw drift가 생길 수 있습니다.
+
+주의할 점:
+
+- `/opencr/imu`의 `linear_acceleration`에는 중력 성분이 포함됩니다. 서 있을 때도 한 축에 약 `9.8 m/s^2` 크기가 나오는 것이 정상입니다.
+- 로봇이 모터를 움직이는 중에도 IMU는 같은 OpenCR-Dynamixel 포트로 읽습니다. `enable_opencr_imu:=true`일 때 bridge가 주기적으로 가상 ID `200`을 읽기 때문에 로봇 동작과 동시에 사용할 수 있습니다.
+- IMU publish rate 기본값은 `30 Hz`입니다. 더 빠르게 읽으면 DXL 제어 주기와 버스 부하에 영향을 줄 수 있으니, RL 로깅은 처음에는 `30 Hz` 기준으로 맞추는 것이 좋습니다.
+- 실험 전에는 `ros2 topic hz /opencr/imu`로 실제 주기를 확인합니다.
+
+IMU 숫자 형식을 단독으로 보고 싶을 때만 `arduino/opencr_imu_stream/opencr_imu_stream.ino`를 올립니다. 이 모드는 USB serial에 CSV를 출력하므로 Dynamixel 제어와 동시에 쓰는 모드가 아닙니다.
+
+```bash
+python3 src/biped_bike_runtime/scripts/opencr_imu_reader.py --port /dev/opencr --rows 20
+```
+
+CSV 컬럼은 다음 순서입니다.
+
+```text
+time_ms,qw,qx,qy,qz,roll_deg,pitch_deg,yaw_deg,gyro_x_dps,gyro_y_dps,gyro_z_dps,acc_x_g,acc_y_g,acc_z_g,gyro_x_adc,gyro_y_adc,gyro_z_adc,acc_x_adc,acc_y_adc,acc_z_adc
+```
+
+실제 로봇 제어로 돌아가려면 다시 `arduino/opencr_dxl_bridge_with_imu/opencr_dxl_bridge_with_imu.ino`를 OpenCR에 업로드해야 합니다.
 
 ### `web_control.py`
 
@@ -284,19 +378,20 @@ python3 src/biped_bike_runtime/scripts/web_control.py
 
 ```bash
 ros2 launch biped_bike_runtime hardware_display.launch.py \
-  max_abs_position_rad:=2.2 \
-  center_on_start:=false \
-  startup_ready_posture_on_start:=true \
-  startup_forward_lean_deg:=10.0 \
-  startup_shoulder_pitch_deg:=20.0 \
+  enable_opencr_imu:=true \
+  enable_imu_tf:=true \
+  use_joint_state_gui:=false \
+  publish_present_joint_states:=true \
   enable_joint_state_commands:=false \
-  enable_trajectory_commands:=true
+  enable_trajectory_commands:=true \
+  startup_ready_posture_on_start:=true \
+  center_on_start:=false
 ```
 
 웹 패널의 `Run Walk` 명령:
 
 ```bash
-ros2 run biped_bike_runtime op3_walker.py --ros-args \
+ros2 run biped_bike_runtime ik_walker.py --ros-args \
   -p num_cycles:=1 \
   -p support_hip_roll_lift_deg:=20.0 \
   -p support_ankle_roll_lift_deg:=10.0 \

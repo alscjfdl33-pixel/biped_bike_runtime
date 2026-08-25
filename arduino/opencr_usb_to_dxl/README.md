@@ -1,70 +1,92 @@
-#include <Dynamixel2Arduino.h>
+# OpenCR USB to Dynamixel TTL
 
-// 실제 모터 설정에 맞게 수정
-const uint8_t DXL_ID = 5;
-const uint32_t DXL_BAUDRATE = 1000000;
-const float DXL_PROTOCOL_VERSION = 2.0;
+This Arduino sketch turns an OpenCR board into a simple U2D2-style passthrough:
 
-// OpenRB-150의 DYNAMIXEL 포트
-Dynamixel2Arduino dxl(Serial1);
+```text
+PC /dev/ttyACM0 <-> OpenCR USB Serial <-> OpenCR Serial3 <-> Dynamixel TTL bus
+```
 
-void setup()
-{
-  Serial.begin(115200);
-  while (!Serial);
+Use it with `dxl_joint_state_bridge.py` or Dynamixel Wizard. Only one PC program
+can open `/dev/ttyACM0` at a time.
 
-  // OpenRB-150 DYNAMIXEL 전원 활성화
-  pinMode(BDPIN_DXL_PWR_EN, OUTPUT);
-  digitalWrite(BDPIN_DXL_PWR_EN, HIGH);
-  delay(1000);
+## Upload
 
-  // DYNAMIXEL 통신 시작
-  dxl.begin(DXL_BAUDRATE);
-  dxl.setPortProtocolVersion(DXL_PROTOCOL_VERSION);
+1. Open `opencr_usb_to_dxl.ino` in Arduino IDE.
+2. Select `OpenCR Board`.
+3. Select the OpenCR serial port.
+4. Upload the sketch.
+5. Close Arduino Serial Monitor and Dynamixel Wizard before running ROS.
 
-  Serial.println("DYNAMIXEL angle monitor");
-  Serial.print("ID: ");
-  Serial.println(DXL_ID);
+## ROS Test
 
-  // 통신 확인
-  if (!dxl.ping(DXL_ID))
-  {
-    Serial.println("PING FAILED");
-    Serial.print("Library error code: ");
-    Serial.println(dxl.getLastLibErrCode());
+```bash
+source /opt/ros/jazzy/setup.bash
+colcon build --packages-select biped_bike_runtime
+source install/setup.bash
+ros2 launch biped_bike_runtime hardware_display.launch.py max_abs_position_rad:=0.1
+```
 
-    while (true)
-    {
-      delay(1000);
-    }
-  }
+Move one slider by a small amount, such as `+0.05 rad`. If the real robot moves
+in the same direction as RViz, keep `direction: 1` in `dynamixel_hardware.yaml`.
+If it moves in the opposite direction, set that joint to `direction: -1`.
 
-  Serial.println("PING SUCCESS");
+## Notes
 
-  // 반드시 토크를 꺼야 손으로 돌릴 수 있음
-  dxl.torqueOff(DXL_ID);
+- Do not print debug logs to `Serial`; it corrupts Dynamixel packets.
+- The sketch powers the OpenCR Dynamixel port with `BDPIN_DXL_PWR_EN`.
+- USB baudrate is mirrored to the Dynamixel TTL port. The default is `1000000`.
+- Keep the robot supported while testing. A motor far from tick `2048` can move
+  suddenly when torque is enabled.
 
-  Serial.println("Torque OFF");
-  Serial.println("서보 축을 손으로 천천히 돌려보세요.");
-  Serial.println();
-}
+## Built-in IMU While Running ROS
 
-void loop()
-{
-  float angle = dxl.getPresentPosition(DXL_ID, UNIT_DEGREE);
-  uint16_t error = dxl.getLastLibErrCode();
+To read the OpenCR built-in IMU while controlling Dynamixels, upload this
+bridge instead:
 
-  if (error == 0)
-  {
-    Serial.print("Current angle: ");
-    Serial.print(angle, 2);
-    Serial.println(" deg");
-  }
-  else
-  {
-    Serial.print("READ FAILED / Error code: ");
-    Serial.println(error);
-  }
+```text
+../opencr_dxl_bridge_with_imu/opencr_dxl_bridge_with_imu.ino
+```
 
-  delay(200);
-}
+It keeps normal USB-to-Dynamixel forwarding, and answers Dynamixel Protocol 2.0
+read requests to virtual ID `200` with OpenCR IMU data.
+
+Run hardware with:
+
+```bash
+ros2 launch biped_bike_runtime hardware_display.launch.py \
+  enable_opencr_imu:=true \
+  opencr_imu_rate_hz:=30.0
+```
+
+Check the ROS IMU topic:
+
+```bash
+ros2 topic echo /opencr/imu
+```
+
+The bridge publishes `sensor_msgs/Imu`. Quaternion comes from the OpenCR IMU
+filter, gyro is converted from deg/s to rad/s, and acceleration is converted
+from g to m/s^2.
+
+## Built-in IMU Format Check Only
+
+The OpenCR USB serial cannot carry Dynamixel packets and debug text at the same
+time. To inspect the OpenCR built-in IMU, temporarily upload:
+
+```text
+../opencr_imu_stream/opencr_imu_stream.ino
+```
+
+Then read CSV rows from the PC:
+
+```bash
+python3 src/biped_bike_runtime/scripts/opencr_imu_reader.py --port /dev/opencr --rows 20
+```
+
+CSV columns:
+
+```text
+time_ms,qw,qx,qy,qz,roll_deg,pitch_deg,yaw_deg,gyro_x_dps,gyro_y_dps,gyro_z_dps,acc_x_g,acc_y_g,acc_z_g,gyro_x_adc,gyro_y_adc,gyro_z_adc,acc_x_adc,acc_y_adc,acc_z_adc
+```
+
+Re-upload `opencr_usb_to_dxl.ino` before running ROS hardware control again.

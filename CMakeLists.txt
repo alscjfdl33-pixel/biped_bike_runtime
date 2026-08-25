@@ -25,6 +25,7 @@ install(DIRECTORY
 install(PROGRAMS
   scripts/patch_urdf.py
   scripts/ready_posture.py
+  scripts/ik_walker.py
   scripts/op3_walker.py
   scripts/stair_climber.py
   scripts/transform_bike.py
@@ -33,6 +34,8 @@ install(PROGRAMS
   scripts/bike_teleop.py
   scripts/transform_bike_reverse.py
   scripts/dxl_joint_state_bridge.py
+  scripts/imu_base_tf.py
+  scripts/opencr_imu_reader.py
   scripts/cmd_vel_to_wheels.py
   scripts/wheel_odometry.py
   scripts/ground_truth_attitude.py
