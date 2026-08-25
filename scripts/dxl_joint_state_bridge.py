@@ -218,6 +218,7 @@ class DxlJointStateBridge(Node):
         self.telemetry_duration_sec = 0.0
         self.telemetry_motors = []
         self.opencr_imu_warned = False
+        self._destroying = False
 
         self.max_abs_position_rad = (
             self.get_parameter("max_abs_position_rad").get_parameter_value().double_value
@@ -313,6 +314,31 @@ class DxlJointStateBridge(Node):
         self.get_logger().info(f"Configured Dynamixel position motors: {names}")
 
     def destroy_node(self):
+        if self._destroying:
+            return
+        self._destroying = True
+
+        # Stop callbacks before touching the serial port. If Ctrl+C interrupts a
+        # Dynamixel SDK read, its internal is_using flag can otherwise remain set
+        # and prevent the emergency wheel-stop / torque-off writes below.
+        for timer_name in (
+            "present_joint_state_timer",
+            "trajectory_timer",
+            "velocity_watchdog_timer",
+            "telemetry_timer",
+            "opencr_imu_timer",
+        ):
+            timer = getattr(self, timer_name, None)
+            if timer is not None:
+                timer.cancel()
+
+        if hasattr(self, "port_handler") and self.port_handler.is_using:
+            self.port_handler.is_using = False
+            try:
+                self.port_handler.clearPort()
+            except Exception:
+                pass
+
         try:
             if self.velocity_motors:
                 self._sync_write_goal_velocities(
@@ -1089,9 +1115,12 @@ def main(args: Optional[List[str]] = None):
     node = DxlJointStateBridge()
     try:
         rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":
