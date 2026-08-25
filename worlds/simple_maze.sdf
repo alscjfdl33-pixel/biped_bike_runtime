@@ -1,0 +1,148 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <world name="biped_bike_simple_maze">
+    <plugin
+      filename="gz-sim-physics-system"
+      name="gz::sim::systems::Physics"/>
+    <plugin
+      filename="gz-sim-user-commands-system"
+      name="gz::sim::systems::UserCommands"/>
+    <plugin
+      filename="gz-sim-scene-broadcaster-system"
+      name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin
+      filename="gz-sim-sensors-system"
+      name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <gravity>0 0 -9.81</gravity>
+    <physics name="default_physics" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <scene>
+      <ambient>0.45 0.45 0.45 1</ambient>
+      <background>0.72 0.75 0.78 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <light name="sun" type="directional">
+      <pose>0 0 8 0 0 0</pose>
+      <cast_shadows>true</cast_shadows>
+      <diffuse>0.85 0.85 0.85 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.2 -0.9</direction>
+    </light>
+
+    <model name="ground">
+      <static>true</static>
+      <pose>0 0 -0.01 0 0 0</pose>
+      <link name="ground_link">
+        <collision name="collision">
+          <geometry><box><size>6.4 5.2 0.02</size></box></geometry>
+          <surface>
+            <friction>
+              <ode><mu>1.2</mu><mu2>1.2</mu2></ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>6.4 5.2 0.02</size></box></geometry>
+          <material>
+            <ambient>0.32 0.34 0.37 1</ambient>
+            <diffuse>0.52 0.55 0.58 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Lightweight panel-style walls for an indoor autonomous-driving course. -->
+    <model name="maze_walls">
+      <static>true</static>
+      <link name="walls_link">
+        <collision name="north_collision">
+          <pose>0 2.4 0.25 0 0 0</pose>
+          <geometry><box><size>6.0 0.08 0.5</size></box></geometry>
+        </collision>
+        <visual name="north_visual">
+          <pose>0 2.4 0.25 0 0 0</pose>
+          <geometry><box><size>6.0 0.08 0.5</size></box></geometry>
+          <material><ambient>0.9 0.9 0.86 1</ambient><diffuse>0.96 0.96 0.92 1</diffuse></material>
+        </visual>
+
+        <collision name="south_collision">
+          <pose>0 -2.4 0.25 0 0 0</pose>
+          <geometry><box><size>6.0 0.08 0.5</size></box></geometry>
+        </collision>
+        <visual name="south_visual">
+          <pose>0 -2.4 0.25 0 0 0</pose>
+          <geometry><box><size>6.0 0.08 0.5</size></box></geometry>
+          <material><ambient>0.9 0.9 0.86 1</ambient><diffuse>0.96 0.96 0.92 1</diffuse></material>
+        </visual>
+
+        <collision name="west_collision">
+          <pose>-3.0 0 0.25 0 0 0</pose>
+          <geometry><box><size>0.08 4.8 0.5</size></box></geometry>
+        </collision>
+        <visual name="west_visual">
+          <pose>-3.0 0 0.25 0 0 0</pose>
+          <geometry><box><size>0.08 4.8 0.5</size></box></geometry>
+          <material><ambient>0.9 0.9 0.86 1</ambient><diffuse>0.96 0.96 0.92 1</diffuse></material>
+        </visual>
+
+        <collision name="east_collision">
+          <pose>3.0 0 0.25 0 0 0</pose>
+          <geometry><box><size>0.08 4.8 0.5</size></box></geometry>
+        </collision>
+        <visual name="east_visual">
+          <pose>3.0 0 0.25 0 0 0</pose>
+          <geometry><box><size>0.08 4.8 0.5</size></box></geometry>
+          <material><ambient>0.9 0.9 0.86 1</ambient><diffuse>0.96 0.96 0.92 1</diffuse></material>
+        </visual>
+
+        <!-- Four alternating partitions create a long, broad serpentine route. -->
+        <collision name="left_partition_collision">
+          <pose>-1.8 0.7 0.25 0 0 0</pose>
+          <geometry><box><size>0.08 3.0 0.5</size></box></geometry>
+        </collision>
+        <visual name="left_partition_visual">
+          <pose>-1.8 0.7 0.25 0 0 0</pose>
+          <geometry><box><size>0.08 3.0 0.5</size></box></geometry>
+          <material><ambient>0.82 0.86 0.92 1</ambient><diffuse>0.88 0.92 0.98 1</diffuse></material>
+        </visual>
+
+        <collision name="right_partition_collision">
+          <pose>-0.6 -0.7 0.25 0 0 0</pose>
+          <geometry><box><size>0.08 3.0 0.5</size></box></geometry>
+        </collision>
+        <visual name="right_partition_visual">
+          <pose>-0.6 -0.7 0.25 0 0 0</pose>
+          <geometry><box><size>0.08 3.0 0.5</size></box></geometry>
+          <material><ambient>0.82 0.86 0.92 1</ambient><diffuse>0.88 0.92 0.98 1</diffuse></material>
+        </visual>
+
+        <collision name="center_right_partition_collision">
+          <pose>0.6 0.7 0.25 0 0 0</pose>
+          <geometry><box><size>0.08 3.0 0.5</size></box></geometry>
+        </collision>
+        <visual name="center_right_partition_visual">
+          <pose>0.6 0.7 0.25 0 0 0</pose>
+          <geometry><box><size>0.08 3.0 0.5</size></box></geometry>
+          <material><ambient>0.82 0.86 0.92 1</ambient><diffuse>0.88 0.92 0.98 1</diffuse></material>
+        </visual>
+
+        <collision name="far_right_partition_collision">
+          <pose>1.8 -0.7 0.25 0 0 0</pose>
+          <geometry><box><size>0.08 3.0 0.5</size></box></geometry>
+        </collision>
+        <visual name="far_right_partition_visual">
+          <pose>1.8 -0.7 0.25 0 0 0</pose>
+          <geometry><box><size>0.08 3.0 0.5</size></box></geometry>
+          <material><ambient>0.82 0.86 0.92 1</ambient><diffuse>0.88 0.92 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+  </world>
+</sdf>

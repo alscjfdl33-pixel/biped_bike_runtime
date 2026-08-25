@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>biped_bike_runtime</name>
+  <version>1.0.0</version>
+  <description>
+    Biped Bike Robot 실물 구동 및 로봇 모델 패키지.
+    SolidWorks 원본은 solidworks_export/에 보관,
+    패치된 URDF는 urdf/에 자동 생성.
+  </description>
+  <author email="dongwoo@example.com">Seo Dong-woo</author>
+  <maintainer email="alscjfdl33-pixel@users.noreply.github.com">alscjfdl33-pixel</maintainer>
+  <license>BSD</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <exec_depend>joint_state_publisher_gui</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>trajectory_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>builtin_interfaces</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>dynamixel_sdk</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>ros_gz_sim</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>nav2_bringup</exec_depend>
+  <exec_depend>nav2_amcl</exec_depend>
+  <exec_depend>nav2_common</exec_depend>
+  <exec_depend>nav2_map_server</exec_depend>
+  <exec_depend>nav2_mppi_controller</exec_depend>
+  <exec_depend>nav2_regulated_pure_pursuit_controller</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
