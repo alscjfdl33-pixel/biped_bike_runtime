@@ -30,6 +30,7 @@ install(PROGRAMS
   scripts/stair_climber.py
   scripts/transform_bike.py
   scripts/bike_transform_sequence.py
+  scripts/bike_pose_joint_state_publisher.py
   scripts/revert_bike.py
   scripts/bike_teleop.py
   scripts/transform_bike_reverse.py

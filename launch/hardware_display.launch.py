@@ -72,6 +72,11 @@ def generate_launch_description():
                 description="Start joint_state_publisher_gui for manual RViz sliders.",
             ),
             DeclareLaunchArgument(
+                "use_rviz",
+                default_value="true",
+                description="Start RViz locally. Set false for headless Raspberry Pi use.",
+            ),
+            DeclareLaunchArgument(
                 "publish_present_joint_states",
                 default_value="true",
                 description="Publish actual Dynamixel present positions as /joint_states.",
@@ -80,6 +85,14 @@ def generate_launch_description():
                 "present_joint_state_rate_hz",
                 default_value="15.0",
                 description="Actual Dynamixel joint state publish rate.",
+            ),
+            DeclareLaunchArgument(
+                "present_joint_state_motor_ids",
+                default_value="",
+                description=(
+                    "Comma-separated motor IDs to publish as joint states. "
+                    "Empty publishes all active motors."
+                ),
             ),
             DeclareLaunchArgument(
                 "enable_trajectory_commands",
@@ -253,6 +266,9 @@ def generate_launch_description():
                         "present_joint_state_rate_hz": LaunchConfiguration(
                             "present_joint_state_rate_hz"
                         ),
+                        "present_joint_state_motor_ids": LaunchConfiguration(
+                            "present_joint_state_motor_ids"
+                        ),
                         "enable_trajectory_commands": LaunchConfiguration(
                             "enable_trajectory_commands"
                         ),
@@ -326,6 +342,7 @@ def generate_launch_description():
                 name="rviz2",
                 output="screen",
                 arguments=["-d", rviz_config],
+                condition=IfCondition(LaunchConfiguration("use_rviz")),
             ),
         ]
     )

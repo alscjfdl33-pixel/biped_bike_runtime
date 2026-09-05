@@ -172,6 +172,7 @@ class DxlJointStateBridge(Node):
         self.declare_parameter("publish_present_joint_states", False)
         self.declare_parameter("present_joint_state_topic", "/joint_states")
         self.declare_parameter("present_joint_state_rate_hz", 15.0)
+        self.declare_parameter("present_joint_state_motor_ids", "")
         self.declare_parameter("enable_opencr_imu", False)
         self.declare_parameter("opencr_imu_id", 200)
         self.declare_parameter("opencr_imu_topic", "/opencr/imu")
@@ -333,11 +334,10 @@ class DxlJointStateBridge(Node):
                 timer.cancel()
 
         if hasattr(self, "port_handler") and self.port_handler.is_using:
+            # Do not call clearPort() here. Its pyserial flush may block in
+            # tcdrain after an interrupted USB transaction and prevent the
+            # emergency wheel-stop / torque-off sequence from running.
             self.port_handler.is_using = False
-            try:
-                self.port_handler.clearPort()
-            except Exception:
-                pass
 
         try:
             if self.velocity_motors:
@@ -682,6 +682,38 @@ class DxlJointStateBridge(Node):
         return int(tick)
 
     def _setup_present_joint_state_publisher(self, topic: str):
+        motor_ids_text = str(
+            self.get_parameter("present_joint_state_motor_ids").value
+        ).strip()
+        if motor_ids_text:
+            try:
+                selected_ids = {
+                    int(value.strip())
+                    for value in motor_ids_text.split(",")
+                    if value.strip()
+                }
+            except ValueError as exc:
+                raise ValueError(
+                    "present_joint_state_motor_ids must be comma-separated integers"
+                ) from exc
+            self.present_joint_state_motors = [
+                motor for motor in self.all_motors if motor.id in selected_ids
+            ]
+            missing_ids = selected_ids.difference(
+                motor.id for motor in self.present_joint_state_motors
+            )
+            if missing_ids:
+                self.get_logger().warn(
+                    "Ignoring unknown/inactive present-state motor IDs: "
+                    + ", ".join(str(value) for value in sorted(missing_ids))
+                )
+            if not self.present_joint_state_motors:
+                raise ValueError(
+                    "present_joint_state_motor_ids selected no active motors"
+                )
+        else:
+            self.present_joint_state_motors = list(self.all_motors)
+
         self.present_joint_state_pub = self.create_publisher(JointState, topic, 10)
         rate_hz = max(
             1.0,
@@ -692,23 +724,29 @@ class DxlJointStateBridge(Node):
             self.present_joint_state_callback,
         )
         self.get_logger().warn(
-            f"Publishing present Dynamixel joint states to {topic} at {rate_hz:.1f} Hz"
+            f"Publishing {len(self.present_joint_state_motors)} present Dynamixel "
+            f"joint states to {topic} at {rate_hz:.1f} Hz: "
+            + ", ".join(motor.joint_name for motor in self.present_joint_state_motors)
         )
 
     def present_joint_state_callback(self):
         msg = JointState()
         msg.header.stamp = self.get_clock().now().to_msg()
 
-        for motor in self.all_motors:
+        for motor in self.present_joint_state_motors:
             tick = self._read_present_position_tick(motor)
             if tick is None:
-                continue
+                # Odometry requires a synchronized left/right wheel pair.
+                # Publishing a partial sample would make the consumer pair
+                # values from different instants or repeatedly report missing
+                # wheel joints, so discard the whole sample instead.
+                return
             msg.name.append(motor.joint_name)
             msg.position.append(motor.tick_to_position(tick))
             msg.velocity.append(0.0)
             msg.effort.append(0.0)
 
-        if msg.name:
+        if len(msg.name) == len(self.present_joint_state_motors):
             self.present_joint_state_pub.publish(msg)
 
     def _setup_telemetry_logger(self):
